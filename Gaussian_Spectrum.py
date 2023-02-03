@@ -5,7 +5,7 @@ Created on Thu Feb 2 15:00:00 2023
 
 Description:
 This script uses excitation energies and oscillator strengths from a Q-Chem TD-DFT/CIS output to generate an absorption/emission spectrum by convolution of Gaussian functions. If multiple excitated state calculations are provided (as in excited state AIMD), the spectra is averaged through each job.
-Simply provide the path to your Q-Chem job in the 'file' (string) variable; one has to adjust the values of 'start', 'finish', 'points', 'stdev' as needed.
+Simply provide the path to your Q-Chem job in the 'file' (string) variable; one has to adjust the values of 'start', 'finish', 'points', 'width' as needed.
 """
 
 import numpy as np
@@ -17,9 +17,9 @@ start = 2
 finish = 6
 points = 10000
 
-# Define the FWHM (stdev) in eV
-stdev = 0.1
-sigma = stdev/(2*np.sqrt(log(2)))
+# Define the FWHM (width) in eV
+width = 0.1
+sigma = width/(2*np.sqrt(log(2)))
 
 # Excitation energies in eV and oscillator strengths
 ecc = []
