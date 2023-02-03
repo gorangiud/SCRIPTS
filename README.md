@@ -3,4 +3,4 @@ Simple scripts for parsing and/or processing data from different sources. (Conte
 
 # List of scripts
 - QC_AIMD_TO_XYZ.py    : Converts Q-Chem AIMD jobs to XYZ trajectories.
-- Gaussian_Spectrum.py : Plot spectrum from excitation energies of Q-Chem output
+- Gaussian_Spectrum.py : Plot spectrum from excitation energies of Q-Chem output.
