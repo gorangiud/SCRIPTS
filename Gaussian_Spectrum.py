@@ -62,10 +62,16 @@ for count, peak in enumerate(ecc):
 
 
 #Export data in csv
-w = open("Spectra.csv", "w")
+w = open("Bands.csv", "w")
 w.write("BAND(eV),BAND(nm),OSC.\n")
 for i in range(len(ecc)):
     w.write("{:.4f},{:.4f},{:.4f}\n".format(ecc[i],1240/ecc[i],osc[i]))
+w.close()
+
+w = open("Spectra.csv", "w")
+w.write("BAND(eV),BAND(nm),OSC.\n")
+for i in range(len(x)):
+    w.write("{:.4f},{:.4f},{:.4f}\n".format(x[i],1240/x[i],spectrum[i]))
 w.close()
 
 #Export spectrum in eV
