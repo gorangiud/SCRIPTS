@@ -6,9 +6,13 @@ Created on Thu Jan 26 16:41:00 2023
 Description:
 This script creates a xyz trajectory from a Q-Chem aimd output file.
 Simply provide the path to your Q-Chem job in the 'file' (string) variable; the trajectory will be in the same path and with the same name of the Q-Chem job, but the .xyz extension will be added.
-"""
 
-file = "Path to Q-Chem AIMD job"
+One can also run the script from the command line: python QC_AIMD_TO_XYZ.py your_qchem_aimd_job.out
+"""
+import sys
+
+#file = "Path to Q-Chem AIMD job"
+file = sys.argv[1] # Alternative for command line use
 
 o = open(file,"r")
 w = open(file+".xyz","w")
