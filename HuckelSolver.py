@@ -14,11 +14,9 @@ Inputs:
     - Number of electrons (optional - override default)
 '''
 
-from sympy import  *
-import numpy as np # linear algebra library
+import numpy as np 
 import scipy.linalg as la
 import matplotlib.pyplot as plt
-from pylab import rcParams
 import networkx as nx
 import argparse
 
@@ -118,11 +116,6 @@ Author: Goran Giudetti
 Affiliations: University of Southern California (USC) and University of Groningen (RUG)
 ****************
     ''')
-    #Input = np.array([['C', 0.0000, 0.0000, 0.0000], 
-    #                  ['C',1.3970, 0.0000, 0.0000],
-    #                  ['C',2*1.3970, 0.0000, 0.0000],
-    #                  ['H',2*1.3970, 0.0000, 0.0000]])
-
     for i in range(len(Input)-1,-1,-1):
         if Input[i][0] in Elements:
             continue
@@ -171,9 +164,8 @@ Affiliations: University of Southern California (USC) and University of Groninge
                 ConnectMat[i][j] = ConnectMat[j][i] = dist
                 H[i][j] = H[j][i] = b
 
-    np.savetxt('H_mat.txt',H,fmt='%.2f')
+    np.savetxt('H_mat.txt',H,fmt='%.2f') #Save hamiltonian as plain text
     
-    #H = test_mat
     if args.hamiltonian != '':
         H = np.loadtxt(args.hamiltonian)
     print(H)
@@ -192,9 +184,6 @@ Affiliations: University of Southern California (USC) and University of Groninge
         Dipole_MO[i] = (np.multiply(np.outer((1/np.linalg.norm(evecs[:,i]))*evecs[:,i].T,(1/np.linalg.norm(evecs[:,i]))*evecs[:,i].T), mu_x)).sum() + (np.multiply(np.outer((1/np.linalg.norm(evecs[:,i]))*evecs[:,i].T,(1/np.linalg.norm(evecs[:,i]))*evecs[:,i].T), mu_y)).sum() + (np.multiply(np.outer((1/np.linalg.norm(evecs[:,i]))*evecs[:,i].T,(1/np.linalg.norm(evecs[:,i]))*evecs[:,i].T), mu_z)).sum()
     print(Dipole_MO)
 
-    #gamma_AO_gs = evecs @ Occ @ evecs.T
-    #BO_gs = np.diagonal(gamma_AO_gs, offset=1)/2
-    #MC_gs = np.diagonal(gamma_AO_gs)
 
     # Creat graph for plotting MOs
     G = nx.Graph()
@@ -291,10 +280,6 @@ Atomic orbitals coefficients (row vectors):
     plt.xlim((min(Coord[:,0])-1.397, max(Coord[:,0])+1.397))
     plt.ylim((min(Coord[:,1])-1.397, max(Coord[:,1])+1.397))
     ax.set_aspect('equal', adjustable='box')
-    #cmap = plt.cm.coolwarm
-    #sm = plt.cm.ScalarMappable(cmap=cmap, norm=plt.Normalize(vmin=-1, vmax=1))
-    #sm.set_array([])
-    #cbar = plt.colorbar(sm)
     plt.text(0.01,0.99,'''Ground state''',ha='left', va='top',transform=ax.transAxes)
     plt.savefig(filename+"_N_"+ str(nAtoms)+ "_gs.png", format='png', dpi=300, bbox_inches='tight')
     plt.close()
@@ -366,9 +351,6 @@ Computing excited state and transition properties
         plt.xlim((min(Coord[:,0])-1.397, max(Coord[:,0])+1.397))
         plt.ylim((min(Coord[:,1])-1.397, max(Coord[:,1])+1.397))
         ax.set_aspect('equal', adjustable='box')
-        #cmap = plt.cm.coolwarm
-        #sm = plt.cm.ScalarMappable(cmap=cmap, norm=plt.Normalize(vmin=-1, vmax=1))
-        #cbar = plt.colorbar(sm,shrink=0.25)
         plt.text(0.01,0.99, 
 '''Excitation energy = {:.2f} eV
 Transition = MO {:n} \u2192 MO {:n}
