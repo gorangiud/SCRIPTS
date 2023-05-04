@@ -14,7 +14,7 @@ Inputs:
     - Number of electrons (optional - override default)
 '''
 
-import numpy as np 
+import numpy as np # linear algebra library
 import scipy.linalg as la
 import matplotlib.pyplot as plt
 import networkx as nx
@@ -36,7 +36,6 @@ def equation_plane(x1, y1, z1, x2, y2, z2, x3, y3, z3):
     return(a,b,c,d)
 
 def rotate_on_xy(points):
-    #points = np.array([[1, 2, 3], [4, 5, 6], [-4,-5,-6]])
     normal = np.cross(points[1] - points[0], points[2] - points[0])
     normal_norm = np.linalg.norm(normal)
     if normal_norm == 0.0:
@@ -102,6 +101,14 @@ if __name__ == '__main__':
 
 
     Elements = ['C','N','O','S','P','F','Cl','Br','I']
+    ALPHA = {
+        'C':-11.2,
+        'N':-12.2
+    }
+    BETA = {
+        'CN':-2.00,
+        'CC':-2.62
+    }
     filename = args.xyz
 
     with open(filename, 'r') as f:
@@ -116,6 +123,8 @@ Author: Goran Giudetti
 Affiliations: University of Southern California (USC) and University of Groningen (RUG)
 ****************
     ''')
+
+
     for i in range(len(Input)-1,-1,-1):
         if Input[i][0] in Elements:
             continue
@@ -157,15 +166,22 @@ Affiliations: University of Southern California (USC) and University of Groninge
     PSI = ConnectMat = np.zeros((nAtoms,nAtoms))
     H = a*np.eye(nAtoms,dtype=float)
 
-    for i in range(nAtoms-1):
-        for j in range(i+1, nAtoms):
+    for i in range(nAtoms):
+        for j in range(i, nAtoms):
+            if i == j:
+                H[i][j] = ALPHA[Input[i][0]]
+                continue
             dist = abs(np.sqrt((Coord[i][0]-Coord[j][0])**2 + (Coord[i][1]-Coord[j][1])**2  + (Coord[i][2]-Coord[j][2])**2 ))
             if dist <= 1.6:
                 ConnectMat[i][j] = ConnectMat[j][i] = dist
-                H[i][j] = H[j][i] = b
+                try:
+                    H[i][j] = H[j][i] = BETA[Input[i][0]+Input[j][0]]
+                except:
+                    H[i][j] = H[j][i] = BETA[Input[j][0]+Input[i][0]]
 
-    np.savetxt('H_mat.txt',H,fmt='%.2f') #Save hamiltonian as plain text
+    np.savetxt('H_mat.txt',H,fmt='%.2f')
     
+    #H = test_mat
     if args.hamiltonian != '':
         H = np.loadtxt(args.hamiltonian)
     print(H)
