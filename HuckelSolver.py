@@ -16,6 +16,7 @@ Inputs:
 
 import numpy as np # linear algebra library
 import scipy.linalg as la
+from scipy.linalg import issymmetric
 import matplotlib.pyplot as plt
 import networkx as nx
 import argparse
@@ -91,6 +92,11 @@ each line specifies the indexes of the MO involved in the transition. Indexes on
 parser.add_argument('-H','--hamiltonian',type=str,metavar='',default='',help='''Text file with user defined Hückel Hamiltonian, 
 the matrix is written in a valid format for the np.loadtxt() function. Use spaces to separate matrix elements''')
 parser.add_argument('-q','--charge',metavar='',type=int,default=0,help='Charge of the system')
+parser.add_argument('-M','--mo_size',metavar='',type=int,default=1000,help='Max size of MO lobes (for plotting purposes, default=1000)')
+parser.add_argument('-C','--charge_size',metavar='',type=int,default=500,help='Size of Mulliken charges (for plotting purposes, default=500)')
+parser.add_argument('-N','--node_size',metavar='',type=int,default=5,help='Font size on atoms (for plotting purposes, default=5)')
+parser.add_argument('-E','--edge_size',metavar='',type=int,default=3,help='Font size on bonds (for plotting purposes, default=3)')
+
 
 args = parser.parse_args()
 
@@ -98,7 +104,7 @@ if __name__ == '__main__':
 
     a = -11.2
     b = -2.62
-
+    q_esu = 4.85 # convert electrostatic unit to Debye
 
     Elements = ['C','N','O','S','P','F','Cl','Br','I']
     ALPHA = {
@@ -123,7 +129,10 @@ Author: Goran Giudetti
 Affiliations: University of Southern California (USC) and University of Groningen (RUG)
 ****************
     ''')
-
+    mo_size = args.mo_size
+    q_size = args.charge_size
+    n_font = args.node_size
+    e_font = args.edge_size
 
     for i in range(len(Input)-1,-1,-1):
         if Input[i][0] in Elements:
@@ -136,7 +145,7 @@ Affiliations: University of Southern California (USC) and University of Groninge
     print(Coord)
     print("Attempting rotaing system coordinate on xy plane")
     Coord = rotate_on_xy(Coord).astype(dtype=float)
- 
+    print(Coord)
     Input = np.column_stack((Input[:,0],Coord))
 
     Labels = Input[:,0].T.tolist()
@@ -184,6 +193,9 @@ Affiliations: University of Southern California (USC) and University of Groninge
     #H = test_mat
     if args.hamiltonian != '':
         H = np.loadtxt(args.hamiltonian)
+        if (la.issymmetric(H) == False):
+            print("User-defined Hückel Hamiltonian is not symmetric, exiting program")
+            quit()
     print(H)
     evals,evecs=la.eig(H)
     evals=evals.real
@@ -194,11 +206,6 @@ Affiliations: University of Southern California (USC) and University of Groninge
     print("DeltaE=",evals-min(evals))
     E_gs = np.sum((evals-min(evals))@Occ)
 
-    Dipole_MO = np.array([0.0 for i in range(nAtoms)])
-
-    for i in range(nAtoms):
-        Dipole_MO[i] = (np.multiply(np.outer((1/np.linalg.norm(evecs[:,i]))*evecs[:,i].T,(1/np.linalg.norm(evecs[:,i]))*evecs[:,i].T), mu_x)).sum() + (np.multiply(np.outer((1/np.linalg.norm(evecs[:,i]))*evecs[:,i].T,(1/np.linalg.norm(evecs[:,i]))*evecs[:,i].T), mu_y)).sum() + (np.multiply(np.outer((1/np.linalg.norm(evecs[:,i]))*evecs[:,i].T,(1/np.linalg.norm(evecs[:,i]))*evecs[:,i].T), mu_z)).sum()
-    print(Dipole_MO)
 
 
     # Creat graph for plotting MOs
@@ -223,7 +230,7 @@ Affiliations: University of Southern California (USC) and University of Groninge
         colors = []
         sizes = []
         for j in range(len(evals)):
-            sizes.append(abs(evecs[i][j])*1000)
+            sizes.append(abs(evecs[i][j])*mo_size)
             if evecs[i][j] > 0.0:
                 colors.append("red")
             elif evecs[i][j] < 0.0:
@@ -234,7 +241,7 @@ Affiliations: University of Southern California (USC) and University of Groninge
         edges = G.edges()
         nodes = G.nodes()
         f, ax = plt.subplots()
-        nx.draw(G, with_labels=True, font_weight='bold', node_size=sizes, font_size=5, node_color=colors, 
+        nx.draw(G, with_labels=True, font_weight='bold', node_size=sizes, font_size=n_font, node_color=colors, 
                 pos=posit,labels=node_labels, width=2.0)
         limits = plt.axis('off')  # turns off axis
         # Export picture to png
@@ -272,11 +279,14 @@ Atomic orbitals coefficients (row vectors):
     # Computing ground state
     edges_Labels = {}
     mulliken_charges = {}
+    mull_charges_array = np.asarray([0.0 for i in range(nAtoms)])
+    Dipole_moment_gs_2 = np.asarray([0.000,0.000,0.000])
     for node in nodes:
         MQ = 0
         for mo in range(nAtoms):
             MQ += Occ[mo][mo]*evecs[mo][node]**2
         mulliken_charges[node] = '{:.2f}'.format(1-MQ)
+        mull_charges_array[node] = 1-MQ
     for edge in edges:
         BO = 0
         for mo in range(nAtoms):
@@ -286,11 +296,11 @@ Atomic orbitals coefficients (row vectors):
     charge_labels = {} # Atom element and index in the stripped (without H atoms) plus charge molecule are used for labels
     for i in range(nAtoms):
         charge_labels[i] = node_labels[i]+'\n'+ mulliken_charges[i]
-    charge_sizes = [500 for i in range(nAtoms)]
+    charge_sizes = [q_size for i in range(nAtoms)]
     f, ax = plt.subplots()
-    nx.draw(G, with_labels=True,node_color=charges_colors , node_size=charge_sizes, font_size=5,
+    nx.draw(G, with_labels=True,node_color=charges_colors , node_size=charge_sizes, font_size=n_font,
              cmap='coolwarm',vmax=1,vmin=-1, pos=posit,labels=charge_labels, width=2.0)
-    nx.draw_networkx_edge_labels(G,pos=posit,edge_labels=edges_Labels, font_size=3)
+    nx.draw_networkx_edge_labels(G,pos=posit,edge_labels=edges_Labels, font_size=e_font)
     limits = plt.axis('off')  # turns off axis
     # Export picture to png
     plt.xlim((min(Coord[:,0])-1.397, max(Coord[:,0])+1.397))
@@ -300,12 +310,20 @@ Atomic orbitals coefficients (row vectors):
     plt.savefig(filename+"_N_"+ str(nAtoms)+ "_gs.png", format='png', dpi=300, bbox_inches='tight')
     plt.close()
     plt.clf()
-    Dipole_gs = np.sum(Dipole_MO @ Occ)
+    #
+    # DIPOLE MOMENTS
+    #
+    #
+    #
+    #
+    for i in range(len(mull_charges_array)):
+        Dipole_moment_gs_2 += mull_charges_array[i]*Coord[i]
+    Dipole_moment_gs_2_tot = np.sqrt(Dipole_moment_gs_2[0]**2+Dipole_moment_gs_2[1]**2+Dipole_moment_gs_2[2]**2)
     w.write('''
 Computing ground state properties
-Dipole moment = {:.3f} (Å)
+Dipole moment = {:.3f} (D) [{:.3f}, {:.3f}, {:.3f}] 
 
-    '''.format(Dipole_gs))
+    '''.format(Dipole_moment_gs_2_tot*q_esu,Dipole_moment_gs_2[0]*q_esu,Dipole_moment_gs_2[1]*q_esu,Dipole_moment_gs_2[2]*q_esu))
     # Computing excited states
     if args.excitations == '':
         w.close()
@@ -324,7 +342,11 @@ Computing excited state and transition properties
         count += 1
         hole = ex[0]-1
         electron = ex[1]-1
-        mu_tr = (abs((np.multiply((1/np.linalg.norm(evecs[:,hole]))*np.outer(evecs[:,hole].T,(1/np.linalg.norm(evecs[:,electron]))*evecs[:,electron].T), mu_x)).sum() + (np.multiply(np.outer((1/np.linalg.norm(evecs[:,hole]))*evecs[:,hole].T,(1/np.linalg.norm(evecs[:,electron]))*evecs[:,electron].T), mu_y)).sum() + (np.multiply(np.outer((1/np.linalg.norm(evecs[:,hole]))*evecs[:,hole].T,(1/np.linalg.norm(evecs[:,electron]))*evecs[:,electron].T), mu_z)).sum()))
+        #mu_tr = (abs((np.multiply((1/np.linalg.norm(evecs[:,hole]))*np.outer(evecs[:,hole].T,(1/np.linalg.norm(evecs[:,electron]))*evecs[:,electron].T), mu_x)).sum() + (np.multiply(np.outer((1/np.linalg.norm(evecs[:,hole]))*evecs[:,hole].T,(1/np.linalg.norm(evecs[:,electron]))*evecs[:,electron].T), mu_y)).sum() + (np.multiply(np.outer((1/np.linalg.norm(evecs[:,hole]))*evecs[:,hole].T,(1/np.linalg.norm(evecs[:,electron]))*evecs[:,electron].T), mu_z)).sum()))
+        mu_tr_x = ((np.multiply((1/np.linalg.norm(evecs[:,hole]))*np.outer(evecs[:,hole].T,(1/np.linalg.norm(evecs[:,electron]))*evecs[:,electron].T), mu_x)).sum())
+        mu_tr_y = ((np.multiply(np.outer((1/np.linalg.norm(evecs[:,hole]))*evecs[:,hole].T,(1/np.linalg.norm(evecs[:,electron]))*evecs[:,electron].T), mu_y)).sum())
+        mu_tr_z = ((np.multiply(np.outer((1/np.linalg.norm(evecs[:,hole]))*evecs[:,hole].T,(1/np.linalg.norm(evecs[:,electron]))*evecs[:,electron].T), mu_z)).sum())
+        mu_tr = np.sqrt(mu_tr_x**2 + mu_tr_y**2 + mu_tr_z**2)
         if (ex[0] > nAtoms) or (ex[1] > nAtoms):
             print("Invalid selection, at least 1 index exceeds number of available MOs")
             break
@@ -342,11 +364,13 @@ Computing excited state and transition properties
 
         edges_Labels = {}
         mulliken_charges = {}
+        Dipole_moment_ex_2 = np.asarray([0.000,0.000,0.000])
         for node in nodes:
             MQ = 0
             for mo in range(nAtoms):
                 MQ += Occ_ex[mo][mo]*evecs[mo][node]**2
             mulliken_charges[node] = '{:.2f}'.format(1-MQ)
+            mull_charges_array[node] = 1-MQ
         for edge in edges:
             BO = 0
             for mo in range(nAtoms):
@@ -357,7 +381,6 @@ Computing excited state and transition properties
         charge_labels = {} # Atom element and index in the stripped (without H atoms) plus charge molecule are used for labels
         for i in range(nAtoms):
             charge_labels[i] = node_labels[i]+'\n'+ mulliken_charges[i]
-        charge_sizes = [500 for i in range(nAtoms)]
         f, ax = plt.subplots()
         nx.draw(G, with_labels=True,node_color=charges_colors , node_size=charge_sizes, font_size=5,
                  cmap='coolwarm',vmax=1,vmin=-1, pos=posit,labels=charge_labels, width=2.0)
@@ -375,14 +398,19 @@ Tansition dipole m. = {:.3f} (Å)'''.format(E_ex-E_gs,ex[0],ex[1],mu_tr),ha='lef
         plt.savefig(filename+"_N_"+ str(nAtoms)+ "_transition_" + str(ex[0])+"_"+str(ex[1])+".png", format='png', dpi=300, bbox_inches='tight')
         plt.close()
         plt.clf()
-        Dipole_ex = np.sum(Dipole_MO @ Occ_ex)
+        #
+        # DIPOLE 2
+        #
+        for i in range(len(mull_charges_array)):
+            Dipole_moment_ex_2 += mull_charges_array[i]*Coord[i]
+        Dipole_moment_ex_2_tot = np.sqrt(Dipole_moment_ex_2[0]**2+Dipole_moment_ex_2[1]**2+Dipole_moment_ex_2[2]**2)
         w.write('''********
 Excited state {}
 Excitation energy = {:.2f} eV   
 Transition = MO {:n} \u2192 MO {:n}
-Dipole moment = {:.3f} (Å)
-Diff. dipole m. = {:.3f} (Å)
-Tansition dipole m. = {:.3f} (Å)
-'''.format(count,E_ex-E_gs,ex[0],ex[1],Dipole_ex,Dipole_ex-Dipole_gs,mu_tr))
+Dipole moment = {:.3f} (D) [{:.3f}, {:.3f}, {:.3f}]
+Diff. dipole m. = {:.3f} (D)
+Transition dipole m. = {:.3f} (Å)
+'''.format(count,E_ex-E_gs,ex[0],ex[1],Dipole_moment_ex_2_tot*q_esu,Dipole_moment_ex_2[0]*q_esu,Dipole_moment_ex_2[1]*q_esu,Dipole_moment_ex_2[2]*q_esu,(Dipole_moment_ex_2_tot-Dipole_moment_gs_2_tot)*q_esu,mu_tr))
     w.write('''********''')
     w.close()
