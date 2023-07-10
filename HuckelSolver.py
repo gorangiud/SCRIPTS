@@ -91,6 +91,7 @@ parser.add_argument('-e','--excitations',metavar='',default='',type=str,help='''
 each line specifies the indexes of the MO involved in the transition. Indexes on the same line must be space separated''')
 parser.add_argument('-H','--hamiltonian',type=str,metavar='',default='',help='''Text file with user defined Hückel Hamiltonian, 
 the matrix is written in a valid format for the np.loadtxt() function. Use spaces to separate matrix elements''')
+parser.add_argument('-d','--cutoff',metavar='',type=float,default=1.6,help='Cutoff distance for identifying neighbouring atoms')
 parser.add_argument('-q','--charge',metavar='',type=int,default=0,help='Charge of the system')
 parser.add_argument('-M','--mo_size',metavar='',type=int,default=1000,help='Max size of MO lobes (for plotting purposes, default=1000)')
 parser.add_argument('-C','--charge_size',metavar='',type=int,default=500,help='Size of Mulliken charges (for plotting purposes, default=500)')
@@ -181,7 +182,7 @@ Affiliations: University of Southern California (USC) and University of Groninge
                 H[i][j] = ALPHA[Input[i][0]]
                 continue
             dist = abs(np.sqrt((Coord[i][0]-Coord[j][0])**2 + (Coord[i][1]-Coord[j][1])**2  + (Coord[i][2]-Coord[j][2])**2 ))
-            if dist <= 1.6:
+            if dist <= args.cutoff:
                 ConnectMat[i][j] = ConnectMat[j][i] = dist
                 try:
                     H[i][j] = H[j][i] = BETA[Input[i][0]+Input[j][0]]
@@ -343,7 +344,7 @@ Computing excited state and transition properties
         hole = ex[0]-1
         electron = ex[1]-1
         #mu_tr = (abs((np.multiply((1/np.linalg.norm(evecs[:,hole]))*np.outer(evecs[:,hole].T,(1/np.linalg.norm(evecs[:,electron]))*evecs[:,electron].T), mu_x)).sum() + (np.multiply(np.outer((1/np.linalg.norm(evecs[:,hole]))*evecs[:,hole].T,(1/np.linalg.norm(evecs[:,electron]))*evecs[:,electron].T), mu_y)).sum() + (np.multiply(np.outer((1/np.linalg.norm(evecs[:,hole]))*evecs[:,hole].T,(1/np.linalg.norm(evecs[:,electron]))*evecs[:,electron].T), mu_z)).sum()))
-        mu_tr_x = ((np.multiply((1/np.linalg.norm(evecs[:,hole]))*np.outer(evecs[:,hole].T,(1/np.linalg.norm(evecs[:,electron]))*evecs[:,electron].T), mu_x)).sum())
+        mu_tr_x = ((np.multiply(np.outer((1/np.linalg.norm(evecs[:,hole]))*evecs[:,hole].T,(1/np.linalg.norm(evecs[:,electron]))*evecs[:,electron].T), mu_x)).sum())
         mu_tr_y = ((np.multiply(np.outer((1/np.linalg.norm(evecs[:,hole]))*evecs[:,hole].T,(1/np.linalg.norm(evecs[:,electron]))*evecs[:,electron].T), mu_y)).sum())
         mu_tr_z = ((np.multiply(np.outer((1/np.linalg.norm(evecs[:,hole]))*evecs[:,hole].T,(1/np.linalg.norm(evecs[:,electron]))*evecs[:,electron].T), mu_z)).sum())
         mu_tr = np.sqrt(mu_tr_x**2 + mu_tr_y**2 + mu_tr_z**2)
