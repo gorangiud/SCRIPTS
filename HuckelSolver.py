@@ -55,6 +55,7 @@ def rotate_on_xy(points):
         [u_1*u_2*(1-cos_th), cos_th + (1-cos_th)*u_2**2, -u_1*sin_th],
         [-u_2*sin_th, u_1*sin_th, cos_th]
     ]
+    
 
 
     rotated_points = (rot_mat@points.T).T
@@ -103,7 +104,7 @@ args = parser.parse_args()
 
 if __name__ == '__main__':
 
-    a = -11.2
+    a = -11.20
     b = -2.62
     q_esu = 4.85 # convert electrostatic unit to Debye
 
@@ -195,8 +196,12 @@ Affiliations: University of Southern California (USC) and University of Groninge
     if args.hamiltonian != '':
         H = np.loadtxt(args.hamiltonian)
         if (la.issymmetric(H) == False):
-            print("User-defined Hückel Hamiltonian is not symmetric, exiting program")
+            print("ERROR: user-defined Hamiltonian is not symmetric, exiting program")
             quit()
+        if len(H) != nAtoms:
+            print("ERROR: user-defined Hamiltonian is a {:}x{:} matrix which is inconsistent for a {:} atom system, exiting program".format(len(H),len(H),nAtoms))
+            quit()
+
     print(H)
     evals,evecs=la.eig(H)
     evals=evals.real
@@ -254,7 +259,7 @@ Affiliations: University of Southern California (USC) and University of Groninge
 Occupation = {:n}'''.format(evals[i]-min(evals),Occ[i][i]),ha='left', va='top',transform=ax.transAxes
                  )
         plt.savefig(filename+"_N_"+ str(nAtoms)+ "_MO_" + str(i+1)+".png", format='png', dpi=300, bbox_inches='tight')
-        plt.close
+        plt.close()
         plt.clf()
     w.write('''
 INPUTS
@@ -314,17 +319,16 @@ Atomic orbitals coefficients (row vectors):
     #
     # DIPOLE MOMENTS
     #
-    #
-    #
-    #
     for i in range(len(mull_charges_array)):
         Dipole_moment_gs_2 += mull_charges_array[i]*Coord[i]
     Dipole_moment_gs_2_tot = np.sqrt(Dipole_moment_gs_2[0]**2+Dipole_moment_gs_2[1]**2+Dipole_moment_gs_2[2]**2)
     w.write('''
 Computing ground state properties
-Dipole moment = {:.3f} (D) [{:.3f}, {:.3f}, {:.3f}] 
+Dipole moment = {:.3f} (D) [{:.3f}, {:.3f}, {:.3f}]
+Mulliken Charges:
+{} 
 
-    '''.format(Dipole_moment_gs_2_tot*q_esu,Dipole_moment_gs_2[0]*q_esu,Dipole_moment_gs_2[1]*q_esu,Dipole_moment_gs_2[2]*q_esu))
+    '''.format(Dipole_moment_gs_2_tot*q_esu,Dipole_moment_gs_2[0]*q_esu,Dipole_moment_gs_2[1]*q_esu,Dipole_moment_gs_2[2]*q_esu,array_to_string(mull_charges_array,2.3)))
     # Computing excited states
     if args.excitations == '':
         w.close()
@@ -412,6 +416,10 @@ Transition = MO {:n} \u2192 MO {:n}
 Dipole moment = {:.3f} (D) [{:.3f}, {:.3f}, {:.3f}]
 Diff. dipole m. = {:.3f} (D)
 Transition dipole m. = {:.3f} (Å)
-'''.format(count,E_ex-E_gs,ex[0],ex[1],Dipole_moment_ex_2_tot*q_esu,Dipole_moment_ex_2[0]*q_esu,Dipole_moment_ex_2[1]*q_esu,Dipole_moment_ex_2[2]*q_esu,(Dipole_moment_ex_2_tot-Dipole_moment_gs_2_tot)*q_esu,mu_tr))
+Mulliken Charges:
+{}
+'''.format(count,E_ex-E_gs,ex[0],ex[1],Dipole_moment_ex_2_tot*q_esu,Dipole_moment_ex_2[0]*q_esu,Dipole_moment_ex_2[1]*q_esu,Dipole_moment_ex_2[2]*q_esu,(Dipole_moment_ex_2_tot-Dipole_moment_gs_2_tot)*q_esu,mu_tr,array_to_string(mull_charges_array,2.3)))
     w.write('''********''')
     w.close()
+    unique, counts = np.unique(H, return_counts=True)
+    print("Counting parameters in hamiltonian: {parameter: count}\n",dict(zip(unique, counts)))
