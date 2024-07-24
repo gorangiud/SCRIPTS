@@ -98,6 +98,9 @@ parser.add_argument('-M','--mo_size',metavar='',type=int,default=1000,help='Max 
 parser.add_argument('-C','--charge_size',metavar='',type=int,default=500,help='Size of Mulliken charges (for plotting purposes, default=500)')
 parser.add_argument('-N','--node_size',metavar='',type=int,default=5,help='Font size on atoms (for plotting purposes, default=5)')
 parser.add_argument('-E','--edge_size',metavar='',type=int,default=3,help='Font size on bonds (for plotting purposes, default=3)')
+parser.add_argument('-R','--reorient',metavar='',type=bool,default=False,help='Reorient molecule on xy plane? [True, False] default = False')
+parser.add_argument('-T','--text_plot',metavar='',type=bool,default=False,help='Write transition properties on plots? [True, False] default = False')
+parser.add_argument('-B','--bond_order',metavar='',type=bool,default=False,help='Write bond orders on plots? [True, False] default = False')
 
 
 args = parser.parse_args()
@@ -135,6 +138,9 @@ Affiliations: University of Southern California (USC) and University of Groninge
     q_size = args.charge_size
     n_font = args.node_size
     e_font = args.edge_size
+    reorient = args.reorient
+    text_plot = args.text_plot
+    bond_order = args.bond_order
 
     for i in range(len(Input)-1,-1,-1):
         if Input[i][0] in Elements:
@@ -145,9 +151,12 @@ Affiliations: University of Southern California (USC) and University of Groninge
 
     Coord = Input[:,1:].astype(dtype=float)
     print(Coord)
-    print("Attempting rotaing system coordinate on xy plane")
-    Coord = rotate_on_xy(Coord).astype(dtype=float)
-    print(Coord)
+    if reorient:
+        print("Attempting rotaing system coordinate on xy plane")
+        Coord = rotate_on_xy(Coord).astype(dtype=float)
+        print(Coord)
+    else:
+        print('Using coordinates from input, no reorientation performed')
     Input = np.column_stack((Input[:,0],Coord))
 
     Labels = Input[:,0].T.tolist()
@@ -163,12 +172,11 @@ Affiliations: University of Southern California (USC) and University of Groninge
         mu_z[i][i] = Input[i][3]
 
     # Occ type objects are density matrices
-    if nElectrons % 2 == 0:
-        Occ = np.zeros((nAtoms,nAtoms))
+    Occ = np.zeros((nAtoms,nAtoms))
+    if nElectrons % 2 == 0: 
         for i in range(nElectrons//2):
             Occ[i][i] = 2
     else:
-        Occ = np.zeros((nAtoms,nAtoms))
         for i in range(nElectrons//2):
             Occ[i][i] = 2
         Occ[i+1][i+1] = 1
@@ -191,7 +199,11 @@ Affiliations: University of Southern California (USC) and University of Groninge
                     H[i][j] = H[j][i] = BETA[Input[j][0]+Input[i][0]]
 
     np.savetxt('H_mat.txt',H,fmt='%.2f')
-    
+    xyzFile = open(filename+"_effective.xyz", "w")
+    xyzFile.write('''{}
+                  
+{}'''.format(nAtoms,array_to_string(Input,2.5)))
+    xyzFile.close()
     #H = test_mat
     if args.hamiltonian != '':
         H = np.loadtxt(args.hamiltonian)
@@ -201,8 +213,8 @@ Affiliations: University of Southern California (USC) and University of Groninge
         if len(H) != nAtoms:
             print("ERROR: user-defined Hamiltonian is a {:}x{:} matrix which is inconsistent for a {:} atom system, exiting program".format(len(H),len(H),nAtoms))
             quit()
-
-    print(H)
+    Core_pi = np.trace(H)
+    #print(H)
     evals,evecs=la.eig(H)
     evals=evals.real
     idx = evals.argsort()#[::-1]   
@@ -211,8 +223,8 @@ Affiliations: University of Southern California (USC) and University of Groninge
     print("Eval=",evals)
     print("DeltaE=",evals-min(evals))
     E_gs = np.sum((evals-min(evals))@Occ)
-
-
+    E_gs_tot = np.sum(evals@Occ)
+    B_pi = E_gs_tot - Core_pi
 
     # Creat graph for plotting MOs
     G = nx.Graph()
@@ -248,13 +260,14 @@ Affiliations: University of Southern California (USC) and University of Groninge
         nodes = G.nodes()
         f, ax = plt.subplots()
         nx.draw(G, with_labels=True, font_weight='bold', node_size=sizes, font_size=n_font, node_color=colors, 
-                pos=posit,labels=node_labels, width=2.0)
+                pos=posit,labels=node_labels, width=2.0, edgecolors="black")
         limits = plt.axis('off')  # turns off axis
         # Export picture to png
         plt.xlim((min(Coord[:,0])-1.397, max(Coord[:,0])+1.397))
         plt.ylim((min(Coord[:,1])-1.397, max(Coord[:,1])+1.397))
         ax.set_aspect('equal', adjustable='box')
-        plt.text(0.01,0.99, 
+        if text_plot:
+            plt.text(0.01,0.99, 
 '''MO energy = {:.2f} eV
 Occupation = {:n}'''.format(evals[i]-min(evals),Occ[i][i]),ha='left', va='top',transform=ax.transAxes
                  )
@@ -273,26 +286,30 @@ Removing Hydrogen atoms from molecule, effective coordinates:
 Hückel Hamiltonian:
 {}
 
-Molecular orbitals relative eigenenergies:
+Molecular orbitals eigenenergies:
 {}
 
 Atomic orbitals coefficients (row vectors):
 {}
 
-    '''.format(filename,nAtoms,nElectrons,array_to_string(Input,2.5),array_to_string(H,5.2),array_to_string(evals-min(evals),2.3),array_to_string(evecs,2.5)))
+    '''.format(filename,nAtoms,nElectrons,array_to_string(Input,2.5),array_to_string(H,5.2),array_to_string(evals,2.3),array_to_string(evecs,2.5)))
 
 
     # Computing ground state
     edges_Labels = {}
     mulliken_charges = {}
     mull_charges_array = np.asarray([0.0 for i in range(nAtoms)])
+    density_charges = {}
+    density_charges_array = np.asarray([0.0 for i in range(nAtoms)])
     Dipole_moment_gs_2 = np.asarray([0.000,0.000,0.000])
     for node in nodes:
         MQ = 0
         for mo in range(nAtoms):
-            MQ += Occ[mo][mo]*evecs[mo][node]**2
+            MQ += Occ[mo][mo]*(evecs[mo][node]**2)
         mulliken_charges[node] = '{:.2f}'.format(1-MQ)
         mull_charges_array[node] = 1-MQ
+        density_charges[node] = '{:.2f}'.format(MQ)
+        density_charges_array[node] = MQ
     for edge in edges:
         BO = 0
         for mo in range(nAtoms):
@@ -300,20 +317,41 @@ Atomic orbitals coefficients (row vectors):
         edges_Labels[edge] = '{:.2f}'.format(BO)
     charges_colors = [float(mulliken_charges[i])for i in G.nodes()]
     charge_labels = {} # Atom element and index in the stripped (without H atoms) plus charge molecule are used for labels
+    density_colors = [float(density_charges[i])for i in G.nodes()]
+    density_labels = {} # Atom element and index in the stripped (without H atoms) plus density molecule are used for labels
     for i in range(nAtoms):
         charge_labels[i] = node_labels[i]+'\n'+ mulliken_charges[i]
+        density_labels[i] = node_labels[i]+'\n'+ density_charges[i]
     charge_sizes = [q_size for i in range(nAtoms)]
     f, ax = plt.subplots()
     nx.draw(G, with_labels=True,node_color=charges_colors , node_size=charge_sizes, font_size=n_font,
-             cmap='coolwarm',vmax=1,vmin=-1, pos=posit,labels=charge_labels, width=2.0)
-    nx.draw_networkx_edge_labels(G,pos=posit,edge_labels=edges_Labels, font_size=e_font)
+             cmap='bwr',vmax=max(mull_charges_array)+0.1,vmin=min(mull_charges_array)-0.1, pos=posit,labels=charge_labels, width=2.0,edgecolors="black")
+    if bond_order:
+        nx.draw_networkx_edge_labels(G,pos=posit,edge_labels=edges_Labels, font_size=e_font)
     limits = plt.axis('off')  # turns off axis
     # Export picture to png
     plt.xlim((min(Coord[:,0])-1.397, max(Coord[:,0])+1.397))
     plt.ylim((min(Coord[:,1])-1.397, max(Coord[:,1])+1.397))
     ax.set_aspect('equal', adjustable='box')
-    plt.text(0.01,0.99,'''Ground state''',ha='left', va='top',transform=ax.transAxes)
+    if text_plot:
+        plt.text(0.01,0.99,'''Ground state''',ha='left', va='top',transform=ax.transAxes)
     plt.savefig(filename+"_N_"+ str(nAtoms)+ "_gs.png", format='png', dpi=300, bbox_inches='tight')
+    plt.close()
+    plt.clf()
+    #
+    # DENSITY PLOT
+    #
+    f, ax = plt.subplots()
+    nx.draw(G, with_labels=True,node_color=density_colors , node_size=charge_sizes, font_size=n_font,
+             cmap='bwr',vmax=max(density_charges_array)+0.1,vmin=min(density_charges_array)-0.1, pos=posit,labels=density_labels, width=2.0,edgecolors="black")
+    limits = plt.axis('off')  # turns off axis
+    # Export picture to png
+    plt.xlim((min(Coord[:,0])-1.397, max(Coord[:,0])+1.397))
+    plt.ylim((min(Coord[:,1])-1.397, max(Coord[:,1])+1.397))
+    ax.set_aspect('equal', adjustable='box')
+    if text_plot:
+        plt.text(0.01,0.99,'''Ground state''',ha='left', va='top',transform=ax.transAxes)
+    plt.savefig(filename+"_N_"+ str(nAtoms)+ "_gs_density.png", format='png', dpi=300, bbox_inches='tight')
     plt.close()
     plt.clf()
     #
@@ -325,10 +363,12 @@ Atomic orbitals coefficients (row vectors):
     w.write('''
 Computing ground state properties
 Dipole moment = {:.3f} (D) [{:.3f}, {:.3f}, {:.3f}]
+Total pi-electron energy = {:.2f} eV
+Pi-bonding energy = {:.2f} eV
 Mulliken Charges:
 {} 
 
-    '''.format(Dipole_moment_gs_2_tot*q_esu,Dipole_moment_gs_2[0]*q_esu,Dipole_moment_gs_2[1]*q_esu,Dipole_moment_gs_2[2]*q_esu,array_to_string(mull_charges_array,2.3)))
+    '''.format(Dipole_moment_gs_2_tot*q_esu,Dipole_moment_gs_2[0]*q_esu,Dipole_moment_gs_2[1]*q_esu,Dipole_moment_gs_2[2]*q_esu,E_gs_tot,B_pi,array_to_string(mull_charges_array,2.3)))
     # Computing excited states
     if args.excitations == '':
         w.close()
@@ -337,6 +377,8 @@ Mulliken Charges:
     w.write('''
 Computing excited state and transition properties
 ''')
+    mull_charges_array_gs = mull_charges_array.copy()
+    density_charges_array_gs = density_charges_array.copy()
     excitations = np.loadtxt(args.excitations,dtype='int')
 
     if len(np.shape(excitations)) == 1:
@@ -365,42 +407,72 @@ Computing excited state and transition properties
         Occ_ex[hole][hole] -= 1
         Occ_ex[electron][electron] +=  1
         E_ex = np.sum((evals-min(evals)) @ Occ_ex)
+        E_ex_tot = np.sum(evals@Occ_ex)
+        B_pi_ex = E_ex_tot - Core_pi
 
 
         edges_Labels = {}
         mulliken_charges = {}
+        density_charges = {}
         Dipole_moment_ex_2 = np.asarray([0.000,0.000,0.000])
         for node in nodes:
             MQ = 0
             for mo in range(nAtoms):
-                MQ += Occ_ex[mo][mo]*evecs[mo][node]**2
-            mulliken_charges[node] = '{:.2f}'.format(1-MQ)
-            mull_charges_array[node] = 1-MQ
+                MQ += Occ_ex[mo][mo]*(evecs[mo][node]**2)
+            mulliken_charges[node] = '{:.2f}'.format(1-MQ-mull_charges_array_gs[node])
+            mull_charges_array[node] = 1-MQ-mull_charges_array_gs[node]
+            density_charges[node] = '{:.2f}'.format(MQ-density_charges_array_gs[node])
+            density_charges_array[node] = MQ-density_charges_array_gs[node]
         for edge in edges:
             BO = 0
             for mo in range(nAtoms):
                 BO += Occ_ex[mo][mo]*evecs[mo][edge[0]]*evecs[mo][edge[1]]
             edges_Labels[edge] = '{:.2f}'.format(BO)
         charges_colors = [float(mulliken_charges[i])for i in G.nodes()]
+        density_colors = [float(density_charges[i])for i in G.nodes()]
 
         charge_labels = {} # Atom element and index in the stripped (without H atoms) plus charge molecule are used for labels
+        density_labels = {} # Atom element and index in the stripped (without H atoms) plus density molecule are used for labels
         for i in range(nAtoms):
             charge_labels[i] = node_labels[i]+'\n'+ mulliken_charges[i]
+            density_labels[i] = node_labels[i]+'\n'+ density_charges[i]
         f, ax = plt.subplots()
-        nx.draw(G, with_labels=True,node_color=charges_colors , node_size=charge_sizes, font_size=5,
-                 cmap='coolwarm',vmax=1,vmin=-1, pos=posit,labels=charge_labels, width=2.0)
-        nx.draw_networkx_edge_labels(G,pos=posit,edge_labels=edges_Labels, font_size=3)
+        nx.draw(G, with_labels=True,node_color=charges_colors , node_size=charge_sizes, font_size=5,font_weight='bold',
+                 cmap='bwr',vmax=max(mull_charges_array)+0.1,vmin=min(mull_charges_array)-0.1, pos=posit,labels=charge_labels, width=2.0,edgecolors="black")
+        if bond_order:
+            nx.draw_networkx_edge_labels(G,pos=posit,edge_labels=edges_Labels, font_size=3)
         limits = plt.axis('off')  # turns off axis
         # Export picture to png
         plt.xlim((min(Coord[:,0])-1.397, max(Coord[:,0])+1.397))
         plt.ylim((min(Coord[:,1])-1.397, max(Coord[:,1])+1.397))
         ax.set_aspect('equal', adjustable='box')
-        plt.text(0.01,0.99, 
+        if text_plot:
+            plt.text(0.01,0.99, 
 '''Excitation energy = {:.2f} eV
 Transition = MO {:n} \u2192 MO {:n}
 Tansition dipole m. = {:.3f} (Å)'''.format(E_ex-E_gs,ex[0],ex[1],mu_tr),ha='left', va='top',transform=ax.transAxes
                  )
         plt.savefig(filename+"_N_"+ str(nAtoms)+ "_transition_" + str(ex[0])+"_"+str(ex[1])+".png", format='png', dpi=300, bbox_inches='tight')
+        plt.close()
+        plt.clf()
+        #
+        # DENSITY PLOT
+        #
+        f, ax = plt.subplots()
+        nx.draw(G, with_labels=True,node_color=density_colors , node_size=charge_sizes, font_size=5,font_weight='bold',
+                 cmap='bwr',vmax=max(density_charges_array)+0.1,vmin=min(density_charges_array)-0.1, pos=posit,labels=density_labels, width=2.0,edgecolors="black")
+        limits = plt.axis('off')  # turns off axis
+        # Export picture to png
+        plt.xlim((min(Coord[:,0])-1.397, max(Coord[:,0])+1.397))
+        plt.ylim((min(Coord[:,1])-1.397, max(Coord[:,1])+1.397))
+        ax.set_aspect('equal', adjustable='box')
+        if text_plot:
+            plt.text(0.01,0.99, 
+'''Excitation energy = {:.2f} eV
+Transition = MO {:n} \u2192 MO {:n}
+Tansition dipole m. = {:.3f} (Å)'''.format(E_ex-E_gs,ex[0],ex[1],mu_tr),ha='left', va='top',transform=ax.transAxes
+                 )
+        plt.savefig(filename+"_N_"+ str(nAtoms)+ "_transition_density_" + str(ex[0])+"_"+str(ex[1])+".png", format='png', dpi=300, bbox_inches='tight')
         plt.close()
         plt.clf()
         #
@@ -411,14 +483,16 @@ Tansition dipole m. = {:.3f} (Å)'''.format(E_ex-E_gs,ex[0],ex[1],mu_tr),ha='lef
         Dipole_moment_ex_2_tot = np.sqrt(Dipole_moment_ex_2[0]**2+Dipole_moment_ex_2[1]**2+Dipole_moment_ex_2[2]**2)
         w.write('''********
 Excited state {}
-Excitation energy = {:.2f} eV   
+Excitation energy = {:.2f} eV
+Total pi-electron energy = {:.2f} eV
+Pi-bonding energy = {:.2f} eV   
 Transition = MO {:n} \u2192 MO {:n}
 Dipole moment = {:.3f} (D) [{:.3f}, {:.3f}, {:.3f}]
 Diff. dipole m. = {:.3f} (D)
 Transition dipole m. = {:.3f} (Å)
 Mulliken Charges:
 {}
-'''.format(count,E_ex-E_gs,ex[0],ex[1],Dipole_moment_ex_2_tot*q_esu,Dipole_moment_ex_2[0]*q_esu,Dipole_moment_ex_2[1]*q_esu,Dipole_moment_ex_2[2]*q_esu,(Dipole_moment_ex_2_tot-Dipole_moment_gs_2_tot)*q_esu,mu_tr,array_to_string(mull_charges_array,2.3)))
+'''.format(count,E_ex-E_gs,E_ex_tot,B_pi_ex,ex[0],ex[1],Dipole_moment_ex_2_tot*q_esu,Dipole_moment_ex_2[0]*q_esu,Dipole_moment_ex_2[1]*q_esu,Dipole_moment_ex_2[2]*q_esu,(Dipole_moment_ex_2_tot-Dipole_moment_gs_2_tot)*q_esu,mu_tr,array_to_string(mull_charges_array,2.3)))
     w.write('''********''')
     w.close()
     unique, counts = np.unique(H, return_counts=True)
