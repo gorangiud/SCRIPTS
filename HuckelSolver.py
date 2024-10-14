@@ -21,46 +21,95 @@ import matplotlib.pyplot as plt
 import networkx as nx
 import argparse
 
-def equation_plane(x1, y1, z1, x2, y2, z2, x3, y3, z3):
-     
-    a1 = x2 - x1
-    b1 = y2 - y1
-    c1 = z2 - z1
-    a2 = x3 - x1
-    b2 = y3 - y1
-    c2 = z3 - z1
-    a = b1 * c2 - b2 * c1
-    b = a2 * c1 - a1 * c2
-    c = a1 * b2 - b1 * a2
-    d = (- a * x1 - b * y1 - c * z1)
-    #print(f"equation of plane is {a}x + {b}y + {c}z + {d} = 0.")
-    return(a,b,c,d)
+# Function to load XYZ coordinates from a file
+def load_xyz(file_name):
+    with open(file_name, 'r') as file:
+        lines = file.readlines()
+        num_atoms = int(lines[0].strip())
+        atoms = []
+        coordinates = []
+        for i in range(2, 2 + num_atoms):
+            parts = lines[i].strip().split()
+            atom = parts[0]
+            x, y, z = map(float, parts[1:])
+            atoms.append(atom)
+            coordinates.append([x, y, z])
+        return np.array(atoms), np.array(coordinates)
 
-def rotate_on_xy(points):
-    normal = np.cross(points[1] - points[0], points[2] - points[0])
-    normal_norm = np.linalg.norm(normal)
-    if normal_norm == 0.0:
-        print("Points selected are collinear, rotation algorithm won't work. No rotation applied.")
-        return points
-    a,b,c,d = equation_plane(points[0][0], points[0][1],points[0][2],points[1][0],points[1][1],points[1][2],points[2][0],points[2][1],points[2][2])
+# Function to compute the center of mass
+def compute_center_of_mass(atoms, coordinates):
+    masses = {"H": 1.008, "C": 12.01, "O": 16.00, "N": 14.01}  # Extend as needed
+    total_mass = sum([masses[atom] for atom in atoms])
+    center_of_mass = np.sum([masses[atoms[i]] * coordinates[i] for i in range(len(atoms))], axis=0) / total_mass
+    return center_of_mass
 
-    tras = -d/c
-    cos_th = c/np.sqrt(a**2 + b**2 + c**2)
-    sin_th = np.sqrt((a**2 + b**2)/(a**2 + b**2 + c**2))
-    u_1 = b/np.sqrt(a**2 + b**2 )
-    u_2 = -a/np.sqrt(a**2 + b**2 )
-
-    rot_mat = [
-        [cos_th + (1-cos_th)*u_1**2, u_1*u_2*(1-cos_th), u_2*sin_th],
-        [u_1*u_2*(1-cos_th), cos_th + (1-cos_th)*u_2**2, -u_1*sin_th],
-        [-u_2*sin_th, u_1*sin_th, cos_th]
-    ]
+# Function to compute the inertia tensor
+def compute_inertia_tensor(atoms, coordinates):
+    masses = {"H": 1.008, "C": 12.01, "O": 16.00, "N": 14.01}  # Extend as needed
+    inertia_tensor = np.zeros((3, 3))
     
+    for i in range(len(atoms)):
+        mass = masses[atoms[i]]
+        r = coordinates[i]
+        x, y, z = r[0], r[1], r[2]
+        
+        inertia_tensor[0, 0] += mass * (y**2 + z**2)
+        inertia_tensor[1, 1] += mass * (x**2 + z**2)
+        inertia_tensor[2, 2] += mass * (x**2 + y**2)
+        inertia_tensor[0, 1] -= mass * x * y
+        inertia_tensor[0, 2] -= mass * x * z
+        inertia_tensor[1, 2] -= mass * y * z
+    
+    inertia_tensor[1, 0] = inertia_tensor[0, 1]
+    inertia_tensor[2, 0] = inertia_tensor[0, 2]
+    inertia_tensor[2, 1] = inertia_tensor[1, 2]
+    
+    return inertia_tensor
 
+# Function to rotate the coordinates based on the principal moments
+def rotate_molecule(atoms, coordinates):
+    # Center coordinates by subtracting the center of mass
+    center_of_mass = compute_center_of_mass(atoms, coordinates)
+    coordinates_centered = coordinates - center_of_mass
+    
+    inertia_tensor = compute_inertia_tensor(atoms, coordinates_centered)
+    
+    # Diagonalize the inertia tensor to get eigenvalues (moments) and eigenvectors (axes)
+    moments, axes = np.linalg.eigh(inertia_tensor)
+    
+    # Sort the moments and corresponding axes: largest to smallest
+    idx = np.argsort(moments)[::-1]
+    principal_moments = moments[idx]
+    principal_axes = axes[:, idx]
+    
+    
+    rotation_matrix = np.array([
+        principal_axes[:, 2],  
+        principal_axes[:, 1],  
+        principal_axes[:, 0],  
+    ]).T
+    
+    # Rotate the coordinates
+    rotated_coordinates = np.dot(coordinates_centered, rotation_matrix)
+    
+    # Translate the molecule back to the original center of mass
+    return rotated_coordinates + center_of_mass
 
-    rotated_points = (rot_mat@points.T).T
+# Function to save the rotated coordinates to an XYZ file
+def save_xyz(file_name, atoms, coordinates):
+    with open(file_name, 'w') as file:
+        file.write(f"{len(atoms)}\n")
+        file.write("Rotated molecule\n")
+        for i, atom in enumerate(atoms):
+            x, y, z = coordinates[i]
+            file.write(f"{atom} {x:.6f} {y:.6f} {z:.6f}\n")
 
-    return(rotated_points)
+# Main function to load, rotate, and save the molecule
+def rotate_on_xy(input_file, output_file):
+    atoms, coordinates = load_xyz(input_file)
+    rotated_coordinates = rotate_molecule(atoms, coordinates)
+    save_xyz(output_file, atoms, rotated_coordinates)
+    print(f"Rotated molecule saved to {output_file}")
 
 def array_to_string(arr,l):
     stringed = ''
@@ -118,9 +167,18 @@ if __name__ == '__main__':
     }
     BETA = {
         'CN':-2.00,
-        'CC':-2.62
+        'CC':-2.62,
+        'NN':-2.00,
     }
     filename = args.xyz
+    reorient = args.reorient
+    if reorient:
+        print("Attempting rotaing system coordinate on xy plane")
+        rotate_on_xy(filename,filename+'_rotated_xyz')
+        filename = filename+'_rotated_xyz'
+
+    else:
+        print('Using coordinates from input, no reorientation performed')
 
     with open(filename, 'r') as f:
         Input = [[num for num in line.strip().split()] for line in f]
@@ -138,7 +196,6 @@ Affiliations: University of Southern California (USC) and University of Groninge
     q_size = args.charge_size
     n_font = args.node_size
     e_font = args.edge_size
-    reorient = args.reorient
     text_plot = args.text_plot
     bond_order = args.bond_order
 
@@ -151,12 +208,7 @@ Affiliations: University of Southern California (USC) and University of Groninge
 
     Coord = Input[:,1:].astype(dtype=float)
     print(Coord)
-    if reorient:
-        print("Attempting rotaing system coordinate on xy plane")
-        Coord = rotate_on_xy(Coord).astype(dtype=float)
-        print(Coord)
-    else:
-        print('Using coordinates from input, no reorientation performed')
+    
     Input = np.column_stack((Input[:,0],Coord))
 
     Labels = Input[:,0].T.tolist()
