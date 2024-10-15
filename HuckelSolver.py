@@ -147,7 +147,7 @@ parser.add_argument('-M','--mo_size',metavar='',type=int,default=1000,help='Max 
 parser.add_argument('-C','--charge_size',metavar='',type=int,default=500,help='Size of Mulliken charges (for plotting purposes, default=500)')
 parser.add_argument('-N','--node_size',metavar='',type=int,default=5,help='Font size on atoms (for plotting purposes, default=5)')
 parser.add_argument('-E','--edge_size',metavar='',type=int,default=3,help='Font size on bonds (for plotting purposes, default=3)')
-parser.add_argument('-R','--reorient',metavar='',type=bool,default=True,help='Reorient molecule on xy plane? [True, False] default = False')
+parser.add_argument('-R','--reorient',metavar='',type=bool,default=True,help='Reorient molecule on xy plane? [True, False] default = True')
 parser.add_argument('-T','--text_plot',metavar='',type=bool,default=False,help='Write transition properties on plots? [True, False] default = False')
 parser.add_argument('-B','--bond_order',metavar='',type=bool,default=False,help='Write bond orders on plots? [True, False] default = False')
 
