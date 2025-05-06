@@ -21,6 +21,15 @@ import matplotlib.pyplot as plt
 import networkx as nx
 import argparse
 
+# argparse support for boolean values
+def str2bool(v):
+    if v.lower() in ('yes', 'true', 't', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
+
 # Function to load XYZ coordinates from a file
 def load_xyz(file_name):
     with open(file_name, 'r') as file:
@@ -147,9 +156,9 @@ parser.add_argument('-M','--mo_size',metavar='',type=int,default=1000,help='Max 
 parser.add_argument('-C','--charge_size',metavar='',type=int,default=500,help='Size of Mulliken charges (for plotting purposes, default=500)')
 parser.add_argument('-N','--node_size',metavar='',type=int,default=5,help='Font size on atoms (for plotting purposes, default=5)')
 parser.add_argument('-E','--edge_size',metavar='',type=int,default=3,help='Font size on bonds (for plotting purposes, default=3)')
-parser.add_argument('-R','--reorient',metavar='',type=bool,default=True,help='Reorient molecule on xy plane? [True, False] default = True')
-parser.add_argument('-T','--text_plot',metavar='',type=bool,default=False,help='Write transition properties on plots? [True, False] default = False')
-parser.add_argument('-B','--bond_order',metavar='',type=bool,default=False,help='Write bond orders on plots? [True, False] default = False')
+parser.add_argument('-R','--reorient',metavar='',type=str,default="True",help='Reorient molecule on xy plane? [True, False] default = True')
+parser.add_argument('-T','--text_plot',metavar='',type=str,default="False",help='Write transition properties on plots? [True, False] default = False')
+parser.add_argument('-B','--bond_order',metavar='',type=str,default="False",help='Write bond orders on plots? [True, False] default = False')
 
 
 args = parser.parse_args()
@@ -171,7 +180,7 @@ if __name__ == '__main__':
         'NN':-2.00,
     }
     filename = args.xyz
-    reorient = args.reorient
+    reorient = str2bool(args.reorient)
     if reorient:
         print("Attempting rotaing system coordinate on xy plane")
         rotate_on_xy(filename,filename+'_rotated_xyz')
@@ -196,8 +205,8 @@ Affiliations: University of Southern California (USC) and University of Groninge
     q_size = args.charge_size
     n_font = args.node_size
     e_font = args.edge_size
-    text_plot = args.text_plot
-    bond_order = args.bond_order
+    text_plot = str2bool(args.text_plot)
+    bond_order = str2bool(args.bond_order)
 
     for i in range(len(Input)-1,-1,-1):
         if Input[i][0] in Elements:
